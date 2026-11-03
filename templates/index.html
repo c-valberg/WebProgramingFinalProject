@@ -1,12 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My App</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='my_style.css') }}">
-</head>
-<body>
-    
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}{{ app_name }}: shared chores, no nagging{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        {% if session.get('user_id') %}
+            <a href="{{ url_for('chores') }}" class="btn btn-accent btn-lg">Go to my chores</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="btn btn-accent btn-lg">Log in to get started</a>
+        {% endif %}
+    </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Log in | {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5 login-wrap">
+    <h1 class="h3 mb-4">Log in</h1>
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            {{ form.username.label(class="form-label") }}
+            {{ form.username(class="form-control", autocomplete="username") }}
+        </div>
+        <div class="mb-3">
+            {{ form.password.label(class="form-label") }}
+            {{ form.password(class="form-control", autocomplete="current-password") }}
+        </div>
+        {{ form.submit(class="btn btn-primary w-100") }}
+    </form>
+    <p class="small text-muted mt-4">Demo accounts: <code>admin / admin123</code> and <code>sam / member123</code></p>
+</div>
+{% endblock %}
