@@ -1,19 +1,23 @@
-from __future__ import annotations
-
-from collections.abc import Sequence
-from pathlib import Path
-
-from flask import Flask, request, session
-from flask import redirect, url_for, render_template, flash
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf import FlaskForm
-from sqlalchemy import Enum, select, Integer, String, CheckConstraint
-from sqlalchemy.orm import Mapped, mapped_column
-from wtforms.fields import StringField, SubmitField, SelectField, IntegerField
-from wtforms.validators import DataRequired, InputRequired, NumberRange, length
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass
+
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "change-me"  # load from an env variable later
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 
-@app.route('/')
+db = SQLAlchemy(app, model_class=Base)
+
+
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
