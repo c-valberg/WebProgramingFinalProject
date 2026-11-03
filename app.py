@@ -19,5 +19,6 @@ def index():
     return render_template("index.html")
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@app.route("/do_your_chores")
+def do_your_chores():
+    return render_template("index.html")
