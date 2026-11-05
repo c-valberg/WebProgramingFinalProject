@@ -4,5 +4,45 @@
 {% block content %}
     <div>
         #TODO: add the list of chores that are assigned to the loged in user. The list should be fetched from the server using an API call and displayed in a table format. Each chore should have a checkbox to mark it as done or not done, and a button to delete the chore.
+        {% if chores %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Chore</th>
+                        <th scope="col">Assigned To</th>
+                        <th scope="col">Due Date</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for chore in chores %}
+                        <tr>
+                            <td>{{ chore.name }}</td>
+                            <td>{{ chore.assigned_to }}</td>
+                            <td>{{ chore.due_date }}</td>
+                            <td>{{ 'Done' if chore.is_done else 'Not Done' }}</td>
+                            <td>
+                                <!-- Add buttons for marking as done and deleting the chore -->
+                                <button class="btn btn-success" onclick="markAsDone({{ chore.id }})">Mark as Done</button>
+                                <button class="btn btn-danger" onclick="deleteChore({{ chore.id }})">Delete</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No chores assigned to you.</p>
+        {% endif %}
+new Sortable(example2Left, {
+    group: 'shared', // set both lists to same group
+    animation: 150
+});
+
+new Sortable(example2Right, {
+    group: 'shared',
+    animation: 150
+});
+        <!-- It would be cool if there was a special click that we could do to open a popup menu for each chore and members could provide their like/dislike of doing a certain chore. -->
     </div>    
 {% endblock %}

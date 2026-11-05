@@ -2,5 +2,73 @@
 {% block title %}My chores | {{ app_name }}{% endblock %}
 
 {% block content %}
-    TODO: For each member of the household, we need to display a sortable js list of chores that have been assigned to each member as well as unassigned chores. Each member should be able to move chores from unassigned to their own list,or vice versae, but they should not be allowed to interact with another members list(unless they are an admin). 
+<div class="container py-4">
+
+  <form method="POST" class="row g-2 mb-4" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="col-md-5">{{ form.title(class="form-control", placeholder="New chore") }}</div>
+    <div class="col-md-4">{{ form.assignee(class="form-select") }}</div>
+    <div class="col-md-3">{{ form.submit(class="btn btn-primary w-100") }}</div>
+  </form>
+
+  <div id="board" class="row g-3"
+       data-me="{{ session['user_id'] }}"
+       data-admin="{{ 'true' if session['role'] == 'admin' else 'false' }}">
+
+    {% for u in users %}
+    <div class="col-md-4">
+      <h2 class="h5">{{ u.username }}</h2>
+      <div class="chore-list" data-user-id="{{ u.id }}">
+        {% for c in chores if c.assignee_id == u.id %}
+          <div class="chore" data-id="{{ c.id }}">{{ c.title }}</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="col-md-4">
+      <h2 class="h5">Unassigned</h2>
+      <div class="chore-list" data-user-id="">
+        {% for c in chores if c.assignee_id is none %}
+          <div class="chore" data-id="{{ c.id }}">{{ c.title }}</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
+<script>
+const board = document.getElementById("board");
+const me = board.dataset.me;
+const isAdmin = board.dataset.admin === "true";
+const csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+// A list is "usable" if it's mine, the Unassigned list (id ""), or I'm an admin
+const canUse = (listEl) => isAdmin || listEl.dataset.userId === "" || listEl.dataset.userId === me;
+
+document.querySelectorAll(".chore-list").forEach((list) => {
+  new Sortable(list, {
+    group: {
+      name: "chores",
+      pull: (to, from) => canUse(from.el),
+      put:  (to, from) => canUse(to.el),
+    },
+    disabled: !canUse(list),   // other members' lists are locked for non-admins
+    animation: 150,
+    onEnd: async (evt) => {
+      if (evt.from === evt.to) return;            // just reordered, nothing to save
+      const target = evt.to.dataset.userId;       // "" means unassigned
+      const res = await fetch(`/api/chores/${evt.item.dataset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+        body: JSON.stringify({ assignee_id: target === "" ? null : Number(target) }),
+      });
+      if (!res.ok) { alert("Couldn't move that chore."); location.reload(); }
+    },
+  });
+});
+</script>
 {% endblock %}

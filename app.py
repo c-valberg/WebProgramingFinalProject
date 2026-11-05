@@ -1,12 +1,13 @@
 from functools import wraps
 
-from flask import Flask, render_template, session, redirect, url_for, flash, abort
+from flask import Flask, render_template, session, redirect, url_for, flash, abort, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 from wtforms import StringField, PasswordField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length
+
 
 APP_NAME = "Chore Tracker"  # change this once and it updates everywhere
 
@@ -19,18 +20,20 @@ CSRFProtect(app)  # protects every POST form
 
 
 # ---------- Models ----------
+# Each user has a username, password hash, and role (admin or member). Each chore has a title, done status, and an assignee (user).
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(10), nullable=False, default="member")  # "admin" or "member"
 
-
+#Each chore has a title, done status, and an assignee (user).
+#I wonder if in order to make it so that members can't assign chores to other members I should add a check in the route that adds chores to make sure that the assignee is not a member if the user adding the chore is a member.
 class Chore(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     done = db.Column(db.Boolean, default=False, nullable=False)
-    assignee_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    assignee_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     assignee = db.relationship("User")
 
 
@@ -93,35 +96,40 @@ def logout():
 @app.route("/chores", methods=["GET", "POST"])
 @login_required
 def chores():
-    is_admin = session["role"] == "admin"
     form = ChoreForm()
-    form.assignee.choices = [(u.id, u.username) for u in User.query.order_by(User.username)]
-
-    # Only admins can add chores
+    form.assignee.choices = [(0, "Unassigned")] + [(u.id, u.username) for u in User.query.all()]
     if form.validate_on_submit():
-        if not is_admin:
-            abort(403)
-        db.session.add(Chore(title=form.title.data, assignee_id=form.assignee.data))
+        assignee_id = form.assignee.data or None  # 0 -> None (unassigned)
+        if session["role"] != "admin" and assignee_id not in (None, session["user_id"]):
+            flash("Members can only assign chores to themselves.", "danger")
+            return redirect(url_for("chores"))
+        db.session.add(Chore(title=form.title.data, assignee_id=assignee_id))
         db.session.commit()
-        flash("Chore added.", "success")
+        flash("Chore added!", "success")
         return redirect(url_for("chores"))
-
-    query = Chore.query.order_by(Chore.done, Chore.id)
-    if not is_admin:  # members only see their own chores
-        query = query.filter_by(assignee_id=session["user_id"])
-    return render_template("chores.html", chores=query.all(), form=form, is_admin=is_admin)
+    return render_template("chores.html", form=form,
+                           users=User.query.all(), chores=Chore.query.all())
 
 
-@app.route("/chores/<int:chore_id>/toggle", methods=["POST"])
+@app.patch("/api/chores/<int:chore_id>")
 @login_required
-def toggle_chore(chore_id):
-    chore = db.get_or_404(Chore, chore_id)
-    if session["role"] != "admin" and chore.assignee_id != session["user_id"]:
-        abort(403)
-    chore.done = not chore.done
-    db.session.commit()
-    return redirect(url_for("chores"))
+def move_chore(chore_id):
+    data = request.get_json(silent=True) or {}
+    chore = db.session.get(Chore, chore_id)
+    if chore is None:
+        return jsonify(ok=False, error="Chore not found"), 404
 
+    target = data.get("assignee_id")  # an int user id, or None for Unassigned
+    me = session["user_id"]
+    if session["role"] != "admin":
+        if chore.assignee_id not in (None, me) or target not in (None, me):
+            return jsonify(ok=False, error="Not allowed"), 403
+    if target is not None and db.session.get(User, target) is None:
+        return jsonify(ok=False, error="No such user"), 400
+
+    chore.assignee_id = target
+    db.session.commit()
+    return jsonify(ok=True)
 
 # ---------- Setup ----------
 def seed_database():
@@ -131,6 +139,10 @@ def seed_database():
         db.session.add_all([
             User(username="admin", password_hash=generate_password_hash("admin123"), role="admin"),
             User(username="sam", password_hash=generate_password_hash("member123"), role="member"),
+            Chore(title="Wash the dishes"),
+            Chore(title="Vacuum the living room"),
+            Chore(title="Do the laundry"),
+            Chore(title="Take out the trash")
         ])
         db.session.commit()
 
