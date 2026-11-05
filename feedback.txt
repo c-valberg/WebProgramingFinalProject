@@ -1,0 +1,14 @@
+The idea overall seems viable depending on how easy SortableJS is to work with.
+
+If your goal is a feeling of fairness, 
+you might need to implement a system where each user can 
+specify how much they dislike doing a chore. 
+That might allow you to spread out chores more 
+fairly if there is a better allocation than everyone
+ does everything the same number of times.
+
+How does this work if you can just drag your chores to other people? 
+Users could only drag chores either into their own column or the 
+column of the user to which they were automatically assigned. You 
+could consider a color-coding system where the color of the chore's
+virtual sticky note is determined by who is assigned to complete it.
