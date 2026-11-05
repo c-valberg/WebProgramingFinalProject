@@ -111,40 +111,68 @@ def chores():
                            users=User.query.all(), chores=Chore.query.all())
 
 
+@app.route("/mychores")
+@login_required
+def mychores():
+    mine = (Chore.query.filter_by(assignee_id=session["user_id"])
+            .order_by(Chore.done, Chore.id).all())  # unfinished first
+    return render_template("mychores.html", chores=mine)
+
+
 @app.patch("/api/chores/<int:chore_id>")
 @login_required
 def move_chore(chore_id):
+    """Updates a chore. Send {"assignee_id": ...} to move it and/or {"done": true/false} to check it off."""
     data = request.get_json(silent=True) or {}
     chore = db.session.get(Chore, chore_id)
     if chore is None:
         return jsonify(ok=False, error="Chore not found"), 404
 
-    target = data.get("assignee_id")  # an int user id, or None for Unassigned
     me = session["user_id"]
-    if session["role"] != "admin":
-        if chore.assignee_id not in (None, me) or target not in (None, me):
-            return jsonify(ok=False, error="Not allowed"), 403
-    if target is not None and db.session.get(User, target) is None:
-        return jsonify(ok=False, error="No such user"), 400
+    is_admin = session["role"] == "admin"
 
-    chore.assignee_id = target
+    if "assignee_id" in data:
+        target = data["assignee_id"]  # an int user id, or None for Unassigned
+        if not is_admin and (chore.assignee_id not in (None, me) or target not in (None, me)):
+            return jsonify(ok=False, error="Not allowed"), 403
+        if target is not None and db.session.get(User, target) is None:
+            return jsonify(ok=False, error="No such user"), 400
+        chore.assignee_id = target
+
+    if "done" in data:
+        if not isinstance(data["done"], bool):
+            return jsonify(ok=False, error="done must be true or false"), 400
+        if not is_admin and chore.assignee_id != me:  # only the assignee (or an admin) can check it off
+            return jsonify(ok=False, error="Not allowed"), 403
+        chore.done = data["done"]
+
     db.session.commit()
     return jsonify(ok=True)
 
 # ---------- Setup ----------
+DEMO_USERS = [
+    # username, password, role, chores they start with
+    ("admin", "admin123", "admin", []),
+    ("sam", "member123", "member", []),
+    ("alex", "member123", "member", ["Clean the bathroom", "Water the plants"]),
+    ("jordan", "member123", "member", ["Mow the lawn", "Cook dinner on Friday"]),
+]
+UNASSIGNED_CHORES = ["Wash the dishes", "Vacuum the living room", "Do the laundry", "Take out the trash"]
+
+
 def seed_database():
-    """Creates tables and two demo users the first time the app runs."""
+    """Creates tables and adds any missing demo users, so new ones also show up in an existing site.db."""
     db.create_all()
-    if not User.query.first():
-        db.session.add_all([
-            User(username="admin", password_hash=generate_password_hash("admin123"), role="admin"),
-            User(username="sam", password_hash=generate_password_hash("member123"), role="member"),
-            Chore(title="Wash the dishes"),
-            Chore(title="Vacuum the living room"),
-            Chore(title="Do the laundry"),
-            Chore(title="Take out the trash")
-        ])
-        db.session.commit()
+    first_run = User.query.first() is None
+    for username, password, role, chores in DEMO_USERS:
+        if User.query.filter_by(username=username).first():
+            continue
+        user = User(username=username, password_hash=generate_password_hash(password), role=role)
+        db.session.add(user)
+        db.session.add_all([Chore(title=title, assignee=user) for title in chores])
+    if first_run:
+        db.session.add_all([Chore(title=title) for title in UNASSIGNED_CHORES])
+    db.session.commit()
 
 
 with app.app_context():

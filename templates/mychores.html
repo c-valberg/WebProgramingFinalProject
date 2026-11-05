@@ -2,47 +2,61 @@
 {% block title %}My chores | {{ app_name }}{% endblock %}
 
 {% block content %}
-    <div>
-        #TODO: add the list of chores that are assigned to the loged in user. The list should be fetched from the server using an API call and displayed in a table format. Each chore should have a checkbox to mark it as done or not done, and a button to delete the chore.
-        {% if chores %}
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th scope="col">Chore</th>
-                        <th scope="col">Assigned To</th>
-                        <th scope="col">Due Date</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for chore in chores %}
-                        <tr>
-                            <td>{{ chore.name }}</td>
-                            <td>{{ chore.assigned_to }}</td>
-                            <td>{{ chore.due_date }}</td>
-                            <td>{{ 'Done' if chore.is_done else 'Not Done' }}</td>
-                            <td>
-                                <!-- Add buttons for marking as done and deleting the chore -->
-                                <button class="btn btn-success" onclick="markAsDone({{ chore.id }})">Mark as Done</button>
-                                <button class="btn btn-danger" onclick="deleteChore({{ chore.id }})">Delete</button>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>No chores assigned to you.</p>
-        {% endif %}
-new Sortable(example2Left, {
-    group: 'shared', // set both lists to same group
-    animation: 150
-});
+<div class="container py-4">
+  <h1 class="h3 mb-3">My chores</h1>
 
-new Sortable(example2Right, {
-    group: 'shared',
-    animation: 150
+  {% if chores %}
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th scope="col" style="width: 4rem">Done</th>
+          <th scope="col">Chore</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for chore in chores %}
+        <tr>
+          <td>
+            <input class="form-check-input done-toggle" type="checkbox"
+                   id="done-{{ chore.id }}" data-id="{{ chore.id }}" {{ 'checked' if chore.done }}>
+          </td>
+          <td>
+            <label for="done-{{ chore.id }}"
+                   class="{{ 'text-decoration-line-through text-muted' if chore.done }}">{{ chore.title }}</label>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No chores assigned to you yet. Grab one from the <a href="{{ url_for('chores') }}">chore board</a>.</p>
+  {% endif %}
+
+  {# Idea: a special click (right-click / long-press) on a chore could open a popup
+     where members say how much they like or dislike doing it. #}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+document.querySelectorAll(".done-toggle").forEach((box) => {
+  box.addEventListener("change", async () => {
+    const res = await fetch(`/api/chores/${box.dataset.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ done: box.checked }),
+    });
+    if (!res.ok) {
+      box.checked = !box.checked;  // undo the click
+      alert("Couldn't update that chore.");
+      return;
+    }
+    const label = box.closest("tr").querySelector("label");
+    label.classList.toggle("text-decoration-line-through", box.checked);
+    label.classList.toggle("text-muted", box.checked);
+  });
 });
-        <!-- It would be cool if there was a special click that we could do to open a popup menu for each chore and members could provide their like/dislike of doing a certain chore. -->
-    </div>    
+</script>
 {% endblock %}
