@@ -20,7 +20,9 @@
       <h2 class="h5">{{ u.username }}</h2>
       <div class="chore-list" data-user-id="{{ u.id }}">
         {% for c in chores if c.assignee_id == u.id %}
-          <div class="chore" data-id="{{ c.id }}">{{ c.title }}</div>
+          <div class="chore preference-board-{{ preferences.get(c.id, 'unset') }}" data-id="{{ c.id }}">
+            {{ c.title }}
+          </div>
         {% endfor %}
       </div>
     </div>
@@ -30,7 +32,7 @@
       <h2 class="h5">Unassigned</h2>
       <div class="chore-list" data-user-id="">
         {% for c in chores if c.assignee_id is none %}
-          <div class="chore" data-id="{{ c.id }}">{{ c.title }}</div>
+          <div class="chore preference-board-unset" data-id="{{ c.id }}">{{ c.title }}</div>
         {% endfor %}
       </div>
     </div>

@@ -37,6 +37,16 @@ class Chore(db.Model):
     assignee = db.relationship("User")
 
 
+class Preference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    chore_id = db.Column(db.Integer, db.ForeignKey("chore.id"), nullable=False)
+    dislike = db.Column(db.Integer, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "chore_id", name="unique_user_chore_preference"),
+    )
+
+
 # ---------- Forms ----------
 class LoginForm(FlaskForm):
     username = StringField("Username", validators=[DataRequired(), Length(max=20)])
@@ -107,8 +117,20 @@ def chores():
         db.session.commit()
         flash("Chore added!", "success")
         return redirect(url_for("chores"))
+    all_chores = Chore.query.all()
+    preference_lookup = {
+        (preference.user_id, preference.chore_id): preference.dislike
+        for preference in Preference.query.all()
+    }
+    preferences = {
+        chore.id: preference_lookup[(chore.assignee_id, chore.id)]
+        for chore in all_chores
+        if chore.assignee_id is not None
+        and (chore.assignee_id, chore.id) in preference_lookup
+    }
     return render_template("chores.html", form=form,
-                           users=User.query.all(), chores=Chore.query.all())
+                           users=User.query.all(), chores=all_chores,
+                           preferences=preferences)
 
 
 @app.route("/mychores")
@@ -116,7 +138,11 @@ def chores():
 def mychores():
     mine = (Chore.query.filter_by(assignee_id=session["user_id"])
             .order_by(Chore.done, Chore.id).all())  # unfinished first
-    return render_template("mychores.html", chores=mine)
+    preferences = {
+        preference.chore_id: preference.dislike
+        for preference in Preference.query.filter_by(user_id=session["user_id"]).all()
+    }
+    return render_template("mychores.html", chores=mine, preferences=preferences)
 
 
 @app.patch("/api/chores/<int:chore_id>")
@@ -148,6 +174,37 @@ def move_chore(chore_id):
 
     db.session.commit()
     return jsonify(ok=True)
+
+
+@app.patch("/api/chores/<int:chore_id>/preference")
+@login_required
+def update_preference(chore_id):
+    data = request.get_json(silent=True) or {}
+    dislike = data.get("dislike")
+    if isinstance(dislike, bool) or not isinstance(dislike, int) or not 1 <= dislike <= 5:
+        return jsonify(ok=False, error="dislike must be an integer from 1 to 5"), 400
+
+    chore = db.session.get(Chore, chore_id)
+    if chore is None:
+        return jsonify(ok=False, error="Chore not found"), 404
+    if chore.assignee_id != session["user_id"]:
+        return jsonify(ok=False, error="Not allowed"), 403
+
+    preference = Preference.query.filter_by(
+        user_id=session["user_id"],
+        chore_id=chore_id,
+    ).first()
+    if preference is None:
+        preference = Preference(
+            user_id=session["user_id"],
+            chore_id=chore_id,
+            dislike=dislike,
+        )
+        db.session.add(preference)
+    else:
+        preference.dislike = dislike
+    db.session.commit()
+    return jsonify(ok=True, dislike=dislike)
 
 # ---------- Setup ----------
 DEMO_USERS = [

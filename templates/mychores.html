@@ -11,6 +11,7 @@
         <tr>
           <th scope="col" style="width: 4rem">Done</th>
           <th scope="col">Chore</th>
+          <th scope="col" style="width: 10rem">Preference</th>
         </tr>
       </thead>
       <tbody>
@@ -21,8 +22,28 @@
                    id="done-{{ chore.id }}" data-id="{{ chore.id }}" {{ 'checked' if chore.done }}>
           </td>
           <td>
-            <label for="done-{{ chore.id }}"
-                   class="{{ 'text-decoration-line-through text-muted' if chore.done }}">{{ chore.title }}</label>
+            <button class="chore-preference-button preference-open {{ 'text-decoration-line-through text-muted' if chore.done }}"
+                    type="button" data-bs-toggle="modal" data-bs-target="#preferenceModal"
+                    data-chore-id="{{ chore.id }}" data-chore-title="{{ chore.title }}"
+                    data-dislike="{{ preferences.get(chore.id, 3) }}">
+              {{ chore.title }}
+            </button>
+          </td>
+          <td>
+            {% set dislike = preferences.get(chore.id) %}
+            {% if dislike %}
+              <button class="preference-value preference-color-{{ dislike }} preference-open"
+                      type="button" data-bs-toggle="modal" data-bs-target="#preferenceModal"
+                      data-chore-id="{{ chore.id }}" data-chore-title="{{ chore.title }}"
+                      data-dislike="{{ dislike }}" aria-label="Rate dislike for {{ chore.title }}">
+                {{ dislike }} / 5
+              </button>
+            {% else %}
+              <button class="btn btn-link btn-sm preference-open" type="button"
+                      data-bs-toggle="modal" data-bs-target="#preferenceModal"
+                      data-chore-id="{{ chore.id }}" data-chore-title="{{ chore.title }}"
+                      data-dislike="3">Set preference</button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -32,14 +53,100 @@
     <p>No chores assigned to you yet. Grab one from the <a href="{{ url_for('chores') }}">chore board</a>.</p>
   {% endif %}
 
-  {# Idea: a special click (right-click / long-press) on a chore could open a popup
-     where members say how much they like or dislike doing it. #}
+  <div class="modal fade" id="preferenceModal" tabindex="-1" aria-labelledby="preferenceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="preferenceModalLabel">Chore preference</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>How much do you dislike <strong id="preferenceChoreTitle"></strong>?</p>
+          <input type="range" class="form-range preference-slider" min="1" max="5" step="1"
+                 value="3" id="dislikeRange">
+          <div class="d-flex justify-content-between small text-muted">
+            <span>1 - Not much</span>
+            <span id="dislikeValue" class="fw-bold">3 / 5</span>
+            <span>5 - Hate it</span>
+          </div>
+          <div id="preferenceStatus" class="small mt-2" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="savePreference">Save preference</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
+const preferenceModal = document.getElementById("preferenceModal");
+const dislikeRange = document.getElementById("dislikeRange");
+const dislikeValue = document.getElementById("dislikeValue");
+const preferenceStatus = document.getElementById("preferenceStatus");
+let selectedChoreId = null;
+
+const preferenceColors = {
+  1: "#6dbf7b",
+  2: "#a7c95d",
+  3: "#e0d05c",
+  4: "#e58a55",
+  5: "#d65353",
+};
+
+function updatePreferenceColor() {
+  const value = Number(dislikeRange.value);
+  dislikeValue.textContent = `${value} / 5`;
+  dislikeRange.style.setProperty("--preference-color", preferenceColors[value]);
+  preferenceStatus.textContent = "";
+}
+
+dislikeRange.addEventListener("input", updatePreferenceColor);
+
+document.querySelectorAll(".preference-open").forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedChoreId = button.dataset.choreId;
+    document.getElementById("preferenceChoreTitle").textContent = button.dataset.choreTitle;
+    dislikeRange.value = button.dataset.dislike;
+    updatePreferenceColor();
+  });
+});
+
+preferenceModal.addEventListener("hidden.bs.modal", () => {
+  selectedChoreId = null;
+});
+
+document.getElementById("savePreference").addEventListener("click", async () => {
+  if (!selectedChoreId) return;
+  const saveButton = document.getElementById("savePreference");
+  saveButton.disabled = true;
+  const res = await fetch(`/api/chores/${selectedChoreId}/preference`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+    body: JSON.stringify({ dislike: Number(dislikeRange.value) }),
+  });
+  saveButton.disabled = false;
+  if (!res.ok) {
+    preferenceStatus.textContent = "Couldn't save that preference.";
+    return;
+  }
+  const dislike = Number(dislikeRange.value);
+  const preferenceButton = document.querySelector(`.preference-open[data-chore-id="${selectedChoreId}"].preference-value`) ||
+                           document.querySelector(`.preference-open[data-chore-id="${selectedChoreId}"]`);
+  if (preferenceButton) {
+    preferenceButton.className = `preference-value preference-color-${dislike} preference-open`;
+    preferenceButton.textContent = `${dislike} / 5`;
+    preferenceButton.dataset.dislike = dislike;
+  } else {
+    location.reload();
+    return;
+  }
+  bootstrap.Modal.getInstance(preferenceModal).hide();
+});
 
 document.querySelectorAll(".done-toggle").forEach((box) => {
   box.addEventListener("change", async () => {
