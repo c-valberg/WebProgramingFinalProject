@@ -107,14 +107,16 @@ function updatePreferenceColor() {
 
 dislikeRange.addEventListener("input", updatePreferenceColor);
 
-document.querySelectorAll(".preference-open").forEach((button) => {
+function bindPreferenceButton(button) {
   button.addEventListener("click", () => {
     selectedChoreId = button.dataset.choreId;
     document.getElementById("preferenceChoreTitle").textContent = button.dataset.choreTitle;
     dislikeRange.value = button.dataset.dislike;
     updatePreferenceColor();
   });
-});
+}
+
+document.querySelectorAll(".preference-open").forEach(bindPreferenceButton);
 
 preferenceModal.addEventListener("hidden.bs.modal", () => {
   selectedChoreId = null;
@@ -135,16 +137,22 @@ document.getElementById("savePreference").addEventListener("click", async () => 
     return;
   }
   const dislike = Number(dislikeRange.value);
-  const preferenceButton = document.querySelector(`.preference-open[data-chore-id="${selectedChoreId}"].preference-value`) ||
-                           document.querySelector(`.preference-open[data-chore-id="${selectedChoreId}"]`);
-  if (preferenceButton) {
-    preferenceButton.className = `preference-value preference-color-${dislike} preference-open`;
-    preferenceButton.textContent = `${dislike} / 5`;
-    preferenceButton.dataset.dislike = dislike;
-  } else {
-    location.reload();
-    return;
-  }
+  const choreRow = document.querySelector(`.done-toggle[data-id="${selectedChoreId}"]`).closest("tr");
+  const preferenceCell = choreRow.cells[2];
+  const choreName = choreRow.querySelector(".chore-preference-button");
+  preferenceCell.replaceChildren();
+  const preferenceButton = document.createElement("button");
+  preferenceButton.type = "button";
+  preferenceButton.className = `preference-value preference-color-${dislike} preference-open`;
+  preferenceButton.dataset.bsToggle = "modal";
+  preferenceButton.dataset.bsTarget = "#preferenceModal";
+  preferenceButton.dataset.choreId = selectedChoreId;
+  preferenceButton.dataset.choreTitle = choreName.textContent.trim();
+  preferenceButton.dataset.dislike = dislike;
+  preferenceButton.setAttribute("aria-label", `Change preference for ${choreName.textContent.trim()}`);
+  preferenceButton.textContent = `${dislike} / 5`;
+  bindPreferenceButton(preferenceButton);
+  preferenceCell.appendChild(preferenceButton);
   bootstrap.Modal.getInstance(preferenceModal).hide();
 });
 
@@ -160,7 +168,8 @@ document.querySelectorAll(".done-toggle").forEach((box) => {
       alert("Couldn't update that chore.");
       return;
     }
-    const label = box.closest("tr").querySelector("label");
+    const choreName = box.closest("tr").querySelector(".chore-preference-button");
+    const label = choreName;
     label.classList.toggle("text-decoration-line-through", box.checked);
     label.classList.toggle("text-muted", box.checked);
   });

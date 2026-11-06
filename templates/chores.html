@@ -68,7 +68,25 @@ document.querySelectorAll(".chore-list").forEach((list) => {
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
         body: JSON.stringify({ assignee_id: target === "" ? null : Number(target) }),
       });
-      if (!res.ok) { alert("Couldn't move that chore."); location.reload(); }
+      if (!res.ok) {
+        alert("Couldn't move that chore.");
+        location.reload();
+        return;
+      }
+      evt.item.classList.remove(
+        "preference-board-unset",
+        "preference-board-1",
+        "preference-board-2",
+        "preference-board-3",
+        "preference-board-4",
+        "preference-board-5",
+      );
+      const result = await res.json();
+      if (target === "" || result.preference === null) {
+        evt.item.classList.add("preference-board-unset");
+      } else {
+        evt.item.classList.add(`preference-board-${result.preference}`);
+      }
     },
   });
 });

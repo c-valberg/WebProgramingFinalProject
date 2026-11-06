@@ -172,8 +172,17 @@ def move_chore(chore_id):
             return jsonify(ok=False, error="Not allowed"), 403
         chore.done = data["done"]
 
+    preference = None
+    if "assignee_id" in data and chore.assignee_id is not None:
+        saved_preference = Preference.query.filter_by(
+            user_id=chore.assignee_id,
+            chore_id=chore.id,
+        ).first()
+        if saved_preference is not None:
+            preference = saved_preference.dislike
+
     db.session.commit()
-    return jsonify(ok=True)
+    return jsonify(ok=True, preference=preference)
 
 
 @app.patch("/api/chores/<int:chore_id>/preference")
